@@ -1,0 +1,14 @@
+[package]
+name = "kubelens-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+async-trait = "0.1"
+kube = { version = "1.0", features = ["runtime", "client", "derive"] }
+k8s-openapi = { version = "0.25", features = ["v1_30"] }
+reqwest = { version = "0.12", features = ["json"] }
