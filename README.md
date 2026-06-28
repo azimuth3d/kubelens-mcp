@@ -48,6 +48,13 @@ For headless or custom LLM environments (e.g., `llama.cpp`, `ollama`):
 ```
 2. Pipe JSON-RPC requests via stdin and read responses from stdout. The server adheres strictly to MCP JSON-RPC 2.0 specifications, making it compatible with any standard MCP client implementation.
 
+#### example with llama.cpp 
+
+```terminal
+./llama-server -m models/qwen2.5-coder.gguf -c 4096 --port 8080
+python3 agent_bridge_llama_cpp.py
+```
+
 ## 🐳 Local Development with `kind`
 1. Create a local cluster:
 ```bash

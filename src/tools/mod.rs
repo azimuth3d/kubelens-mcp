@@ -43,30 +43,7 @@ pub fn get_analyze_pod_failure_tool() -> Tool {
 }
 
 pub async fn call_analyze_pod_failure(args: Option<Value>, cluster: &dyn crate::cluster::traits::ClusterDiagnostics) -> ToolCallResponse {
-    let args = match args {
-        Some(a) => a,
-        None => return ToolCallResponse { content: vec![ToolContent { content_type: "text".to_string(), text: "Missing arguments.".to_string() }] }
-    };
-    
-    let namespace = match args.get("namespace").and_then(|v| v.as_str()) {
-        Some(ns) => ns,
-        None => return ToolCallResponse { content: vec![ToolContent { content_type: "text".to_string(), text: "Missing 'namespace' argument.".to_string() }] }
-    };
-
-    match cluster.get_pod_failures(namespace).await {
-        Ok(data) => ToolCallResponse {
-            content: vec![ToolContent {
-                content_type: "text".to_string(),
-                text: serde_json::to_string_pretty(&data).unwrap_or_else(|_| "Failed to serialize data".to_string()),
-            }],
-        },
-        Err(e) => ToolCallResponse {
-            content: vec![ToolContent {
-                content_type: "text".to_string(),
-                text: format!("Error analyzing pod failures: {}", e),
-            }],
-        }
-    }
+    diagnostics::analyze_pod_failure(cluster, args).await
 }
 
 /// Helper to safely serialize tool results, preventing panics on malformed data.

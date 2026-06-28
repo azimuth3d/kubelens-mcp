@@ -10,7 +10,7 @@ KubeLens-MCP is a high-performance Model Context Protocol (MCP) server written i
 +------------+                 +------------------+                 +-------------------+
 |            |     Stdio       |   KubeLens-MCP   |   kube-rs SDK   |    Kubernetes     |
 | LLM Client | <-------------> |   (MCP Server)   | <-------------> |   API (kind/GKE)  |
-|  (Claude)  |   JSON-RPC 2.0  |   [Rust/Tokio]   |                 +-------------------+
+|            |   JSON-RPC 2.0  |   [Rust/Tokio]   |                 +-------------------+
 +------------+                 +--------+---------+
 |
 | HTTP / reqwest
@@ -50,40 +50,3 @@ kubelens-mcp/
         ├── diagnostics.rs # Pod status analyzer & logs logic
         ├── ingress.rs     # APISIX and cert-manager logic
         └── metrics.rs     # Prometheus queries execution
-
-
-3. Abstraction Boundaries (Traits)
-To ensure decoupled architecture, any interaction with the Kubernetes Cluster or Prometheus must go through the ClusterDiagnostics trait defined in src/cluster/traits.rs.
-
-Trait Definition
-
-Rust
-
-use async_trait::async_trait;
-use serde_json::Value;
-
-#[async_trait]
-pub trait ClusterDiagnostics: Send + Sync {
-    async fn get_pod_failures(&self, namespace: &str) -> Result<Value, String>;
-    async fn get_ingress_status(&self, namespace: &str) -> Result<Value, String>;
-    async fn query_metrics(&self, promql: &str) -> Result<Value, String>;
-}
-
-Strict Rules for AI/Aider Development:
-No direct SDK usage in tools/: Files under src/tools/ must NEVER import kube::Client or use raw kube-rs primitives. They must only call methods from the ClusterDiagnostics trait implementation injected into their context.
-
-Mockability: For every new capability added to kube_client.rs, a corresponding mock response must be added to mock_client.rs to keep tests green without requiring a live cluster.
-
-4. Coding Conventions for Aider
-When implementing tasks, follow these Rust paradigms:
-
-Use standard anyhow or custom thiserror enum for error handling inside modules. Map them cleanly to MCP error codes (-32603 for Internal Errors).
-
-Use modern async syntax (async fn in traits is supported natively).
-
-Ensure serde_json::json! values returned to the MCP layer are highly structured and clean so the LLM client can parse the token context easily.
-
-### Error Handling & Stability Standards
-- **Zero-Unwrap Policy**: Production code must never use `.unwrap()` or `.expect()`. All fallible operations (I/O, serialization, network calls) must be handled via `?`, `match`, or safe combinators like `unwrap_or_else`.
-- **Graceful Degradation**: If JSON serialization fails internally, the server must return a valid `-32603` JSON-RPC error frame rather than crashing. Helper functions (`serialize_error`, `serialize_response`) enforce this contract.
-- **Cluster Error Mapping**: Infrastructure failures (kube-rs, reqwest) are caught at the adapter boundary and translated into standardized MCP error responses or safe fallback payloads.
