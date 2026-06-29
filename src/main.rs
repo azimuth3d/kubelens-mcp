@@ -16,22 +16,20 @@ use tokio::net::TcpListener;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let use_mock = std::env::var("KUBELENS_USE_MOCK").unwrap_or_default() == "true";
-    let cluster: Box<dyn cluster::traits::ClusterDiagnostics> = if use_mock {
-        Box::new(cluster::mock_client::MockClusterClient)
+    let cluster: Arc<dyn cluster::traits::ClusterDiagnostics> = if use_mock {
+        Arc::new(cluster::mock_client::MockClusterClient)
     } else {
         match cluster::kube_client::KubeSdkAdapter::new().await {
-            Ok(adapter) => Box::new(adapter),
+            Ok(adapter) => Arc::new(adapter),
             Err(e) => {
                 eprintln!(
                     "Failed to initialize live cluster client: {}. Falling back to mock.",
                     e
                 );
-                Box::new(cluster::mock_client::MockClusterClient)
+                Arc::new(cluster::mock_client::MockClusterClient)
             }
         }
     };
-
-    let cluster = Arc::new(cluster);
 
     let app = Router::new()
         .route("/mcp", post(handle_mcp_request))
