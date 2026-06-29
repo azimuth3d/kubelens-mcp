@@ -29,14 +29,15 @@ def call_kubelens_tool(tool_name, arguments):
         response_line = mcp_server.stdout.readline()
         if not response_line:
             raise RuntimeError("MCP server closed stdout or returned empty response")
-            
+
     return json.loads(response_line)
 
 
 # 2. Fetch data from Kubernetes via MCP
 print("🔧 Fetching pod data via kubelens-mcp...")
-tool_response = call_kubelens_tool("get_pods", {"namespace": "default"})
-result_data = tool_response.get("result") or {}
+tool_response = call_kubelens_tool("get_pod_failures", {"namespace": "default"})
+result_data = tool_response.get("result")
+print(f"result from tool: {result_data}")
 pod_data = result_data.get("content", [{"text": ""}])[0]["text"]
 
 print("Sending data to Local LLM (llama.cpp) for analysis...\n")
