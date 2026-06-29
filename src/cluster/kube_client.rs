@@ -10,12 +10,16 @@ use crate::cluster::traits::ClusterDiagnostics;
 /// to prevent panics. The MCP layer maps these strings to JSON-RPC `-32603` frames.
 pub struct KubeSdkAdapter {
     client: Client,
+    http_client: reqwest::Client,
 }
 
 impl KubeSdkAdapter {
     pub async fn new() -> Result<Self, String> {
         let client = Client::try_default().await.map_err(|e| format!("Failed to init kube client: {}", e))?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            http_client: reqwest::Client::new(),
+        })
     }
 }
 
@@ -67,7 +71,7 @@ impl ClusterDiagnostics for KubeSdkAdapter {
         let cert_path = format!("/apis/cert-manager.io/v1/namespaces/{}/certificates", namespace);
 
         let base_url = std::env::var("KUBE_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
-        let client = reqwest::Client::new();
+        let client = &self.http_client;
 
         let apisix_routes: Value = client.get(&format!("{}{}", base_url, apisix_path))
             .send().await.map_err(|e| format!("Failed to fetch APISIX routes: {}", e))?
@@ -84,11 +88,10 @@ impl ClusterDiagnostics for KubeSdkAdapter {
     }
 
     async fn query_metrics(&self, promql: &str) -> Result<Value, String> {
-        let client = reqwest::Client::new();
         let prometheus_url = std::env::var("PROMETHEUS_URL").unwrap_or_else(|_| "http://localhost:9090".to_string());
         let url = format!("{}/api/v1/query", prometheus_url);
 
-        let response = client.get(&url)
+        let response = self.http_client.get(&url)
             .query(&[("query", promql)])
             .send()
             .await
