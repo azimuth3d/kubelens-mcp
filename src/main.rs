@@ -1,8 +1,17 @@
+mod cluster;
 mod mcp;
 mod tools;
-mod cluster;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::Json,
+    routing::post,
+    Router,
+};
+use serde_json::Value;
+use std::sync::Arc;
+use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,35 +22,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match cluster::kube_client::KubeSdkAdapter::new().await {
             Ok(adapter) => Box::new(adapter),
             Err(e) => {
-                eprintln!("Failed to initialize live cluster client: {}. Falling back to mock.", e);
+                eprintln!(
+                    "Failed to initialize live cluster client: {}. Falling back to mock.",
+                    e
+                );
                 Box::new(cluster::mock_client::MockClusterClient)
             }
         }
     };
 
-    let stdin = tokio::io::stdin();
-    let mut reader = tokio::io::BufReader::new(stdin);
-    let mut writer = tokio::io::stdout();
+    let cluster = Arc::new(cluster);
 
-    loop {
-        let mut line = String::new();
-        match reader.read_line(&mut line).await {
-            Ok(0) => break, // EOF
-            Ok(_) => {
-                if line.trim().is_empty() { continue; }
-                
-                if let Some(response_json) = mcp::handle_request(&line, cluster.as_ref()).await {
-                    writer.write_all(response_json.as_bytes()).await?;
-                    writer.write_all(b"\n").await?;
-                    writer.flush().await?;
-                }
-            }
-            Err(e) => {
-                eprintln!("IO Error: {}", e);
-                break;
-            }
-        }
-    }
+    let app = Router::new()
+        .route("/mcp", post(handle_mcp_request))
+        .with_state(cluster);
+
+    let listener = TcpListener::bind("0.0.0.0:8080").await?;
+    println!("MCP Server listening on http://0.0.0.0:8080");
+    
+    axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn handle_mcp_request(
+    State(cluster): State<Arc<dyn cluster::traits::ClusterDiagnostics>>,
+    Json(payload): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    match mcp::handle_request(&payload.to_string(), cluster.as_ref()).await {
+        Some(response_str) => {
+            let response_value: Value = serde_json::from_str(&response_str).unwrap_or(Value::String(response_str));
+            Ok(Json(response_value))
+        }
+        None => Err(StatusCode::BAD_REQUEST),
+    }
 }
