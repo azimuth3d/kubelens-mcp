@@ -49,9 +49,21 @@ async fn handle_mcp_request(
 ) -> Result<Json<Value>, StatusCode> {
     match mcp::handle_request(&payload.to_string(), cluster.as_ref()).await {
         Some(response_str) => {
-            let response_value: Value = serde_json::from_str(&response_str).unwrap_or(Value::String(response_str));
+            let response_value: Value = serde_json::from_str(&response_str)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(response_value))
         }
-        None => Err(StatusCode::BAD_REQUEST),
+        None => {
+            let error_id = payload.get("id").cloned().unwrap_or(serde_json::json!(null));
+            let error_response = serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": "Internal error processing request"
+                },
+                "id": error_id
+            });
+            Ok(Json(error_response))
+        }
     }
 }
