@@ -1,5 +1,6 @@
 import json
 import os
+
 import requests
 
 # Configuration for the separately running MCP server
@@ -24,7 +25,7 @@ def call_kubelens_tool(tool_name, arguments):
 
 # 2. Fetch data from Kubernetes via MCP
 print("🔧 Fetching pod data via kubelens-mcp...")
-tool_response = call_kubelens_tool("get_pod_failures", {"namespace": "default"})
+tool_response = call_kubelens_tool("analyze_pod_failure", {"namespace": "default"})
 
 # Debug: Print raw response to inspect structure and catch errors early
 print(f"🔍 Raw MCP Response: {tool_response}")
