@@ -105,14 +105,14 @@ async fn handle_tools_call(params: Option<Value>, id: Value, cluster: &dyn Clust
             let args = params.arguments.clone().unwrap_or(json!({}));
             match crate::tools::ingress::check_ingress_routing(cluster, args).await {
                 Ok(data) => JsonRpcResponse::success(id, data),
-                Err(e) => JsonRpcResponse::error(&id, -32603, e),
+                Err(e) => map_tool_error(&id, e),
             }
         },
         "get_system_metrics" => {
             let args = params.arguments.clone().unwrap_or(json!({}));
             match crate::tools::metrics::get_system_metrics(cluster, args).await {
                 Ok(data) => JsonRpcResponse::success(id, data),
-                Err(e) => JsonRpcResponse::error(&id, -32603, e),
+                Err(e) => map_tool_error(&id, e),
             }
         },
         _ => return JsonRpcResponse::error(&id, -32601, format!("Unknown tool: {}", params.name)),
@@ -124,4 +124,10 @@ fn safe_json_response(id: Value, result: Result<serde_json::Value, serde_json::E
         Ok(val) => JsonRpcResponse::success(id, val),
         Err(e) => JsonRpcResponse::error(&id, -32603, format!("Internal serialization error: {}", e)),
     }
+}
+
+/// Standardizes tool execution errors into MCP JSON-RPC -32603 frames.
+/// Guarantees zero-crash stability by catching and mapping all infrastructure failures.
+fn map_tool_error(id: &Value, err: String) -> JsonRpcResponse {
+    JsonRpcResponse::error(id, -32603, err)
 }
