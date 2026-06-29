@@ -64,14 +64,22 @@ kind create cluster --name kubelens-dev
 ```bash
 kubectl config use-context kind-kubelens-dev
 ```
-3. Run the server locally (uses mock client by default for safety, or live if configured):
+3. Run the server locally using the desired mode:
 ```bash
-# Use live cluster client
+# 🟢 Live Mode: Connects directly to the Kubernetes cluster
 KUBELENS_USE_MOCK=false ./target/release/kubelens-mcp
 
-# Use mock client (default)
+# 🔵 Mock Mode: Uses simulated data for safe local testing
 KUBELENS_USE_MOCK=true ./target/release/kubelens-mcp
+
+# 🟡 Auto Mode (Default): Attempts live connection, gracefully falls back to mock on failure
+./target/release/kubelens-mcp
 ```
+
+### 🛠 Running Modes Explained
+- **`KUBELENS_USE_MOCK=true`**: Forces the server to use `MockClusterClient`. Ideal for CI/CD pipelines or offline development.
+- **`KUBELENS_USE_MOCK=false`**: Forces the server to use `KubeSdkAdapter`. Requires a valid `~/.kube/config` and appropriate RBAC permissions.
+- **Auto Fallback**: If no environment variable is set, the server attempts to initialize the live client. If initialization fails (e.g., missing kubeconfig), it automatically switches to the mock client to prevent crashes.
 
 ## 🔒 Security & RBAC Guidelines
 KubeLens-MCP operates in a **strictly read-only** mode by design. To ensure least-privilege access:
