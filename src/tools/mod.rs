@@ -46,11 +46,6 @@ pub async fn call_analyze_pod_failure(args: Option<Value>, cluster: &dyn crate::
     diagnostics::analyze_pod_failure(cluster, args).await
 }
 
-/// Helper to safely serialize tool results, preventing panics on malformed data.
-fn safe_serialize_json(data: &serde_json::Value) -> String {
-    serde_json::to_string_pretty(data).unwrap_or_else(|_| "Failed to serialize diagnostic data".to_string())
-}
-
 pub fn get_check_ingress_routing_tool() -> Tool {
     ingress::get_check_ingress_routing_tool()
 }

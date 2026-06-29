@@ -78,10 +78,7 @@ fn handle_tools_list(id: Value) -> JsonRpcResponse {
             crate::tools::get_get_system_metrics_tool(),
         ],
     };
-    JsonRpcResponse::success(id, serde_json::to_value(response).unwrap_or_else(|e| {
-        eprintln!("Failed to serialize tool list: {}", e);
-        serde_json::json!({"error": "Serialization failed"})
-    }))
+    safe_json_response(id, serde_json::to_value(response))
 }
 
 async fn handle_tools_call(params: Option<Value>, id: Value, cluster: &dyn ClusterDiagnostics) -> JsonRpcResponse {
@@ -98,11 +95,11 @@ async fn handle_tools_call(params: Option<Value>, id: Value, cluster: &dyn Clust
     match params.name.as_str() {
         "ping" => {
             let res = crate::tools::call_ping_tool(params.arguments).await;
-            JsonRpcResponse::success(id, serde_json::to_value(res).unwrap_or_else(|_| json!({"error": "Serialization failed"})))
+            safe_json_response(id, serde_json::to_value(res))
         },
         "analyze_pod_failure" => {
             let res = crate::tools::call_analyze_pod_failure(params.arguments, cluster).await;
-            JsonRpcResponse::success(id, serde_json::to_value(res).unwrap_or_else(|_| json!({"error": "Serialization failed"})))
+            safe_json_response(id, serde_json::to_value(res))
         },
         "check_ingress_routing" => {
             let args = params.arguments.clone().unwrap_or(json!({}));
@@ -119,5 +116,12 @@ async fn handle_tools_call(params: Option<Value>, id: Value, cluster: &dyn Clust
             }
         },
         _ => return JsonRpcResponse::error(&id, -32601, format!("Unknown tool: {}", params.name)),
+    }
+}
+
+fn safe_json_response(id: Value, result: Result<serde_json::Value, serde_json::Error>) -> JsonRpcResponse {
+    match result {
+        Ok(val) => JsonRpcResponse::success(id, val),
+        Err(e) => JsonRpcResponse::error(&id, -32603, format!("Internal serialization error: {}", e)),
     }
 }
