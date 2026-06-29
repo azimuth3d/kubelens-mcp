@@ -30,7 +30,7 @@ tool_response = call_kubelens_tool("analyze_pod_failure", {"namespace": "default
 # Debug: Print raw response to inspect structure and catch errors early
 print(f"🔍 Raw MCP Response: {tool_response}")
 
-if "error" in tool_response:
+if tool_response.get("error") is not None:
     print(f"❌ MCP Tool Error: {tool_response['error']}")
     pod_data = "Error: MCP tool returned an error."
 else:
@@ -53,7 +53,7 @@ print(f"✅ Parsed pod_data length: {len(pod_data)} chars")
 
 print("Sending data to Local LLM (llama.cpp) for analysis...\n")
 prompt = f"Analyze this Kubernetes pod status and summarize any issues:\n{pod_data}"
-print(prompt)
+# print(prompt)
 # 3. Connect to llama.cpp server (OpenAI-compatible endpoint)
 # Assuming llama-server is running on default port 8080
 llama_cpp_url = "http://10.42.0.89:8080/v1/chat/completions"
