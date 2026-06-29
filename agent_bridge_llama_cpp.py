@@ -1,44 +1,54 @@
 import json
-import subprocess
-
+import os
 import requests
 
-# 1. Start the kubelens-mcp server as a subprocess
-mcp_server = subprocess.Popen(
-    ["./target/release/kubelens-mcp"],
-    stdin=subprocess.PIPE,
-    stdout=subprocess.PIPE,
-    text=True,
-)
+# Configuration for the separately running MCP server
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8080/mcp")
 
 
 def call_kubelens_tool(tool_name, arguments):
-    """Send JSON-RPC request to kubelens-mcp via stdin"""
+    """Send JSON-RPC request to kubelens-mcp via HTTP"""
     req = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
         "params": {"name": tool_name, "arguments": arguments},
     }
-    mcp_server.stdin.write(json.dumps(req) + "\n")
-    mcp_server.stdin.flush()
-
-    # Read response from stdout, skipping empty lines and handling potential buffering
-    response_line = ""
-    while not response_line.strip():
-        response_line = mcp_server.stdout.readline()
-        if not response_line:
-            raise RuntimeError("MCP server closed stdout or returned empty response")
-
-    return json.loads(response_line)
+    try:
+        response = requests.post(MCP_SERVER_URL, json=req, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Failed to connect to MCP server at {MCP_SERVER_URL}: {e}")
 
 
 # 2. Fetch data from Kubernetes via MCP
 print("🔧 Fetching pod data via kubelens-mcp...")
 tool_response = call_kubelens_tool("get_pod_failures", {"namespace": "default"})
-result_data = tool_response.get("result")
-print(f"result from tool: {result_data}")
-pod_data = result_data.get("content", [{"text": ""}])[0]["text"]
+
+# Debug: Print raw response to inspect structure and catch errors early
+print(f"🔍 Raw MCP Response: {tool_response}")
+
+if "error" in tool_response:
+    print(f"❌ MCP Tool Error: {tool_response['error']}")
+    pod_data = "Error: MCP tool returned an error."
+else:
+    result_data = tool_response.get("result")
+    print(f"📦 result_data: {result_data}")
+
+    if result_data is None:
+        print("⚠️ result_data is None. Falling back to empty string.")
+        pod_data = "No data returned from tool."
+    else:
+        # Handle standard MCP tool response format: [{"type": "text", "text": "..."}]
+        if isinstance(result_data, list) and len(result_data) > 0:
+            pod_data = result_data[0].get("text", "")
+        elif isinstance(result_data, dict):
+            pod_data = result_data.get("content", [{}])[0].get("text", "")
+        else:
+            pod_data = str(result_data)
+
+print(f"✅ Parsed pod_data length: {len(pod_data)} chars")
 
 print("Sending data to Local LLM (llama.cpp) for analysis...\n")
 prompt = f"Analyze this Kubernetes pod status and summarize any issues:\n{pod_data}"
@@ -73,6 +83,3 @@ except requests.exceptions.ConnectionError:
     )
 except Exception as e:
     print(f"❌ An error occurred: {e}")
-
-# Clean up
-mcp_server.terminate()
